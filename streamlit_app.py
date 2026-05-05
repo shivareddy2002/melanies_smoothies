@@ -82,7 +82,7 @@ if st.button("Submit Order"):
 # Nutrition API Section
 # -------------------------------
 # -------------------------------
-# Nutrition API Section (FIXED CLEAN FORMAT)
+# Nutrition API Section (FIXED)
 # -------------------------------
 if ingredients_list:
 
@@ -96,33 +96,41 @@ if ingredients_list:
                 'SEARCH_ON'
             ].iloc[0]
 
-            response = requests.get(
-                f"https://my.smoothiefroot.com/api/fruit/{search_on}"
-            )
+            url = f"https://my.smoothiefroot.com/api/fruit/{search_on}"
+            response = requests.get(url)
+
+            # 🔍 Debug (remove later)
+            st.write("API URL:", url)
+            st.write("Status Code:", response.status_code)
+
+            if response.status_code != 200:
+                st.warning(f"⚠️ API failed for {fruit_chosen}")
+                continue
 
             data = response.json()
 
-            if isinstance(data, dict) and "error" in data:
-                st.warning(f"⚠️ {fruit_chosen} not available in nutrition API")
-            else:
-                # Convert to clean single-row format
+            # ✅ Handle both list and dict
+            if isinstance(data, list):
                 df = pd.json_normalize(data)
+            elif isinstance(data, dict):
+                if "error" in data:
+                    st.warning(f"⚠️ {fruit_chosen} not available in API")
+                    continue
+                df = pd.json_normalize([data])
+            else:
+                st.warning(f"⚠️ Unexpected API format for {fruit_chosen}")
+                continue
 
-                # Flatten nutrition columns
-                df = df.rename(columns={
-                    "nutrition.carbohydrates": "carbs",
-                    "nutrition.protein": "protein",
-                    "nutrition.fat": "fat",
-                    "nutrition.sugar": "sugar"
-                })
+            # Clean columns
+            df = df.rename(columns={
+                "nutrition.carbohydrates": "carbs",
+                "nutrition.protein": "protein",
+                "nutrition.fat": "fat",
+                "nutrition.sugar": "sugar"
+            })
 
-                # Keep only useful columns
-                df = df[[
-                    "name", "family", "genus",
-                    "carbs", "fat", "protein", "sugar"
-                ]]
+            st.dataframe(df, use_container_width=True)
 
-                st.dataframe(df, use_container_width=True)
-
-        except Exception:
+        except Exception as e:
             st.error(f"❌ Failed to fetch {fruit_chosen}")
+            st.write("Error:", e)
