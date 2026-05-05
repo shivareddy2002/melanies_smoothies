@@ -134,21 +134,20 @@ cnx = st.connection("snowflake")
 session = cnx.session()
 
 # -------------------------------
-# Get fruit data (FRUIT_NAME + SEARCH_ON)
+# Get data from Snowflake
 # -------------------------------
-fruit_rows = session.table("smoothies.public.fruit_options") \
-    .select("FRUIT_NAME", "SEARCH_ON") \
-    .collect()
+my_dataframe = session.table("smoothies.public.fruit_options") \
+    .select(col("FRUIT_NAME"), col("SEARCH_ON"))
 
-# Create mapping dictionary
-fruit_map = {row["FRUIT_NAME"]: row["SEARCH_ON"] for row in fruit_rows}
+# Convert to Pandas
+pd_df = my_dataframe.to_pandas()
 
 # -------------------------------
-# Multiselect (UI)
+# Multiselect
 # -------------------------------
 ingredients_list = st.multiselect(
     "Choose up to 5 ingredients:",
-    list(fruit_map.keys()),
+    pd_df["FRUIT_NAME"],
     max_selections=5
 )
 
@@ -156,12 +155,12 @@ if len(ingredients_list) == 5:
     st.info("You have selected the maximum 5 fruits.")
 
 # -------------------------------
-# Convert list to string
+# Convert to string
 # -------------------------------
 ingredients_string = ", ".join(ingredients_list)
 
 # -------------------------------
-# Submit Button
+# Submit button
 # -------------------------------
 time_to_insert = st.button("Submit Order")
 
@@ -177,52 +176,53 @@ if time_to_insert:
         st.warning("⚠️ Please select at least one ingredient!")
 
     else:
-        # Prevent SQL issues (escape single quotes)
         safe_name = name_on_order.replace("'", "''")
         safe_ingredients = ingredients_string.replace("'", "''")
 
-        # Correct INSERT statement
         my_insert_stmt = f"""
         INSERT INTO smoothies.public.orders (ingredients, name_on_order)
         VALUES ('{safe_ingredients}', '{safe_name}')
         """
 
-        # Execute
         session.sql(my_insert_stmt).collect()
 
-        # Success UI
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
         st.balloons()
 
 # -------------------------------
-# Nutrition API Section
+# Nutrition API section
 # -------------------------------
 if ingredients_list:
 
     for fruit_chosen in ingredients_list:
 
-        st.markdown(f"### 🍓 {fruit_chosen} Nutrition Information")
+        st.subheader(f"{fruit_chosen} Nutrition Information")
 
         try:
-            search_value = fruit_map[fruit_chosen]
+            # 🔥 THIS IS THE KEY LINE (LAB REQUIRED)
+            search_on = pd_df.loc[
+                pd_df['FRUIT_NAME'] == fruit_chosen,
+                'SEARCH_ON'
+            ].iloc[0]
+
+            # Optional debug (matches lab screenshot)
+            st.write("The search value for", fruit_chosen, "is", search_on)
 
             response = requests.get(
-                f"https://my.smoothiefroot.com/api/fruit/{search_value}"
+                f"https://my.smoothiefroot.com/api/fruit/{search_on}"
             )
 
-            # Check API status
             if response.status_code != 200:
                 st.warning(f"⚠️ {fruit_chosen} API error")
                 continue
 
             data = response.json()
 
-            # Handle API "error" response
             if isinstance(data, dict) and "error" in data:
                 st.warning(f"⚠️ {fruit_chosen} not available in nutrition API")
             else:
                 df = pd.json_normalize(data)
                 st.dataframe(df, use_container_width=True)
 
-        except Exception as e:
+        except Exception:
             st.error(f"❌ Failed to fetch {fruit_chosen}")
