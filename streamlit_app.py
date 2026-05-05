@@ -100,7 +100,7 @@ if ingredients_list:
             ].iloc[0]
 
             response = requests.get(
-                f"https://my.smoothiefroot.com/api/fruit/{search_on}"
+                f"https://smoothiefroot.com/api/fruit/all{search_on}"
             )
 
             data = response.json()
