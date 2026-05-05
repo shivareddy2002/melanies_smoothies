@@ -102,9 +102,10 @@ if ingredients_list:
             )
 
             data = response.json()
-            df = pd.json_normalize(data)
-
-            st.dataframe(df, use_container_width=True)
-
+            if "error" in data:
+                st.warning(f"⚠️ {fruit_chosen} not available in nutrition API")
+            else:
+                df = pd.json_normalize(data)
+                st.dataframe(df, use_container_width=True)
         except:
             st.warning(f"⚠️ {fruit_chosen} not found in API")
