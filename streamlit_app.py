@@ -67,22 +67,14 @@ if time_to_insert:
 # smoothiefroot_response = requests.get("[https://my.smoothiefroot.com/api/fruit/watermelon](https://my.smoothiefroot.com/api/fruit/watermelon)")  
 # st.text(smoothiefroot_response.json())
 import requests
-
-# Call API
-response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
-
-# Show raw response
-st.text(response)
-
-# Convert JSON
-data = response.json()
-
-# Show JSON
-st.write(data)
-
-# Convert to DataFrame
 import pandas as pd
+
+# API call
+smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
+
+# Convert JSON to DataFrame
+data = smoothiefroot_response.json()
 sf_df = pd.json_normalize(data)
 
 # Display table
-st.dataframe(sf_df)
+st.dataframe(sf_df, use_container_width=True)
