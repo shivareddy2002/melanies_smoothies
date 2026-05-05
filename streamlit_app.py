@@ -22,7 +22,7 @@ cnx = st.connection("snowflake")
 session = cnx.session()
 
 # -------------------------------
-# Get fruit data
+# Load fruit data (FRUIT_NAME + SEARCH_ON)
 # -------------------------------
 df_snow = session.table("smoothies.public.fruit_options") \
     .select(col("FRUIT_NAME"), col("SEARCH_ON"))
@@ -47,7 +47,7 @@ if len(ingredients_list) == 5:
 ingredients_string = ", ".join(ingredients_list).strip()
 
 # -------------------------------
-# Submit button
+# Submit Order
 # -------------------------------
 if st.button("Submit Order"):
 
@@ -58,21 +58,33 @@ if st.button("Submit Order"):
         st.warning("⚠️ Please select at least one ingredient!")
 
     else:
-        # sanitize input
+        # Clean inputs
         safe_name = name_on_order.strip().replace("'", "''")
         safe_ingredients = ingredients_string.replace("'", "''")
 
+        # -------------------------------
+        # DORA REQUIRED LOGIC
+        # -------------------------------
+        order_filled = False
+
+        if safe_name.lower() in ["divya", "xi"]:
+            order_filled = True
+
+        # -------------------------------
+        # INSERT INTO SNOWFLAKE
+        # -------------------------------
         insert_sql = f"""
-        INSERT INTO smoothies.public.orders (ingredients, name_on_order)
-        VALUES ('{safe_ingredients}', '{safe_name}')
+        INSERT INTO smoothies.public.orders 
+        (ingredients, name_on_order, order_filled)
+        VALUES ('{safe_ingredients}', '{safe_name}', {str(order_filled).upper()})
         """
 
         session.sql(insert_sql).collect()
 
-        st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+        st.success(f"✅ Your Smoothie is ordered, {safe_name}!")
 
 # -------------------------------
-# Nutrition API section
+# Nutrition API Section
 # -------------------------------
 if ingredients_list:
 
@@ -81,7 +93,7 @@ if ingredients_list:
         st.subheader(f"{fruit_chosen} Nutrition Information")
 
         try:
-            # 🔥 REQUIRED LINE (LAB CRITICAL)
+            # REQUIRED SEARCH_ON mapping
             search_on = pd_df.loc[
                 pd_df['FRUIT_NAME'] == fruit_chosen,
                 'SEARCH_ON'
@@ -94,7 +106,7 @@ if ingredients_list:
             data = response.json()
 
             if isinstance(data, dict) and "error" in data:
-                st.warning(f"⚠️ {fruit_chosen} not available in API")
+                st.warning(f"⚠️ {fruit_chosen} not available in nutrition API")
             else:
                 df = pd.json_normalize(data)
                 st.dataframe(df, use_container_width=True)
