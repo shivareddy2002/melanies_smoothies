@@ -14,14 +14,21 @@ cnx = st.connection("snowflake")
 session = cnx.session()
 
 # Get fruit data
-my_dataframe = session.table("smoothies.public.fruit_options").select(col("FRUIT_NAME"))
-
+# my_dataframe = session.table("smoothies.public.fruit_options").select(col("FRUIT_NAME"))
+my_dataframe = session.table("smoothies.public.fruit_options") \
+    .select("FRUIT_NAME", "SEARCH_ON") \
+    .collect()
+# mapping dictionary
+fruit_map = {row["FRUIT_NAME"]: row["SEARCH_ON"] for row in my_dataframe}
 # Multiselect (UI)
+# ingredients_list = st.multiselect(
+#     "Choose up to 5 ingredients:",
+#     my_dataframe,
+#     max_selections=5)
 ingredients_list = st.multiselect(
     "Choose up to 5 ingredients:",
-    my_dataframe,
+    list(fruit_map.keys()),
     max_selections=5
-
 )
 if len(ingredients_list) == 5:
     st.info("You have selected the maximum 5 fruits.")
@@ -83,27 +90,20 @@ import pandas as pd
 
 if ingredients_list:
 
-    ingredients_string = ''
-
     for fruit_chosen in ingredients_list:
 
-        ingredients_string += fruit_chosen + ' '
-
-        # Show heading
         st.subheader(f"{fruit_chosen} Nutrition Information")
 
         try:
-            # Dynamic API call
+            search_value = fruit_map[fruit_chosen]
+
             response = requests.get(
-                f"https://my.smoothiefroot.com/api/fruit/{fruit_chosen}"
+                f"https://my.smoothiefroot.com/api/fruit/{search_value}"
             )
 
             data = response.json()
-
-            # Convert to dataframe
             df = pd.json_normalize(data)
 
-            # Display
             st.dataframe(df, use_container_width=True)
 
         except:
