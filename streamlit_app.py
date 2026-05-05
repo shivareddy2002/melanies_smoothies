@@ -66,15 +66,45 @@ if time_to_insert:
 # import requests  
 # smoothiefroot_response = requests.get("[https://my.smoothiefroot.com/api/fruit/watermelon](https://my.smoothiefroot.com/api/fruit/watermelon)")  
 # st.text(smoothiefroot_response.json())
+# import requests
+# import pandas as pd
+
+# # API call
+# smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
+
+# # Convert JSON to DataFrame
+# data = smoothiefroot_response.json()
+# sf_df = pd.json_normalize(data)
+
+# # Display table
+# st.dataframe(sf_df, use_container_width=True)
 import requests
 import pandas as pd
 
-# API call
-smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
+if ingredients_list:
 
-# Convert JSON to DataFrame
-data = smoothiefroot_response.json()
-sf_df = pd.json_normalize(data)
+    ingredients_string = ''
 
-# Display table
-st.dataframe(sf_df, use_container_width=True)
+    for fruit_chosen in ingredients_list:
+
+        ingredients_string += fruit_chosen + ' '
+
+        # Show heading
+        st.subheader(f"{fruit_chosen} Nutrition Information")
+
+        try:
+            # Dynamic API call
+            response = requests.get(
+                f"https://my.smoothiefroot.com/api/fruit/{fruit_chosen}"
+            )
+
+            data = response.json()
+
+            # Convert to dataframe
+            df = pd.json_normalize(data)
+
+            # Display
+            st.dataframe(df, use_container_width=True)
+
+        except:
+            st.warning(f"⚠️ {fruit_chosen} not found in API")
