@@ -81,6 +81,9 @@ if st.button("Submit Order"):
 # -------------------------------
 # Nutrition API Section
 # -------------------------------
+# -------------------------------
+# Nutrition API Section (FIXED CLEAN FORMAT)
+# -------------------------------
 if ingredients_list:
 
     for fruit_chosen in ingredients_list:
@@ -88,7 +91,6 @@ if ingredients_list:
         st.subheader(f"{fruit_chosen} Nutrition Information")
 
         try:
-            # REQUIRED SEARCH_ON mapping
             search_on = pd_df.loc[
                 pd_df['FRUIT_NAME'] == fruit_chosen,
                 'SEARCH_ON'
@@ -103,7 +105,23 @@ if ingredients_list:
             if isinstance(data, dict) and "error" in data:
                 st.warning(f"⚠️ {fruit_chosen} not available in nutrition API")
             else:
+                # Convert to clean single-row format
                 df = pd.json_normalize(data)
+
+                # Flatten nutrition columns
+                df = df.rename(columns={
+                    "nutrition.carbohydrates": "carbs",
+                    "nutrition.protein": "protein",
+                    "nutrition.fat": "fat",
+                    "nutrition.sugar": "sugar"
+                })
+
+                # Keep only useful columns
+                df = df[[
+                    "name", "family", "genus",
+                    "carbs", "fat", "protein", "sugar"
+                ]]
+
                 st.dataframe(df, use_container_width=True)
 
         except Exception:
