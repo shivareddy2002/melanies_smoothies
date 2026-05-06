@@ -1,136 +1,64 @@
+# Import Python packages
 import streamlit as st
-from snowflake.snowpark.functions import col
 import requests
-import pandas as pd
+from snowflake.snowpark.functions import col
 
-# -------------------------------
-# Title
-# -------------------------------
-st.title("🥤 Customize Your Smoothie! 🥤")
-st.write("Choose the fruits you want in your custom Smoothie!")
-
-# -------------------------------
-# Name input
-# -------------------------------
-name_on_order = st.text_input("Name on Smoothie:")
-st.write("The name on your Smoothie will be:", name_on_order)
-
-# -------------------------------
-# Snowflake connection
-# -------------------------------
-cnx = st.connection("snowflake")
-session = cnx.session()
-
-# -------------------------------
-# Get fruit data (Snowflake → Pandas)
-# -------------------------------
-df_snow = session.table("smoothies.public.fruit_options") \
-    .select(col("FRUIT_NAME"), col("SEARCH_ON"))
-
-pd_df = df_snow.to_pandas()
-
-# -------------------------------
-# Multiselect
-# -------------------------------
-ingredients_list = st.multiselect(
-    "Choose up to 5 ingredients:",
-    pd_df["FRUIT_NAME"].tolist(),
-    max_selections=5
+# Write directly to the app
+st.title("Customize Your Smoothie :cup_with_straw:")
+st.write(
+    """
+    Choose the fruits you want in your custom Smoothie!
+    """
 )
 
-if len(ingredients_list) == 5:
-    st.info("You have selected the maximum 5 fruits.")
+# User input for name on order
+name_on_order = st.text_input("Name on Smoothie")
+st.write("The name on your smoothie will be: ", name_on_order)
 
-# -------------------------------
-# Build ingredients string (DORA CRITICAL)
-# -------------------------------
-ingredients_string = ", ".join(ingredients_list).strip()
+try:
+    # Establish connection to Snowflake (assuming st.connection is correctly defined)
+    cnx = st.connection("snowflake")
+    session = cnx.session()
 
-# -------------------------------
-# Submit Order
-# -------------------------------
-if st.button("Submit Order"):
+    # Retrieve fruit options from Snowflake
+    my_dataframe = session.table("smoothies.public.fruit_options").select(col("FRUIT_NAME"))
 
-    if not name_on_order:
-        st.warning("⚠️ Please enter your name!")
+    # Multi-select for choosing ingredients
+    ingredients_list = st.multiselect('Choose up to 5 ingredients:', my_dataframe, max_selections=5)
 
-    elif len(ingredients_list) == 0:
-        st.warning("⚠️ Please select at least one ingredient!")
+    # Process ingredients selection
+    if ingredients_list:
+        ingredients_string = ' '.join(ingredients_list)  # Join selected ingredients into a single string
+        for fruit_chosen in ingredients_list:
+            try:
+                # Make API request to get details about each fruit
+                fruityvice_response = requests.get("https://fruityvice.com/api/fruit/" + fruit_chosen)
+                fruityvice_response.raise_for_status()  # Raise an error for bad responses (4xx or 5xx)
+                
+                if fruityvice_response.status_code == 200:
+                    fv_df = st.dataframe(data=fruityvice_response.json(), use_container_width=True)
+                else:
+                    st.warning(f"Failed to fetch details for {fruit_chosen}")
+            
+            except requests.exceptions.RequestException as e:
+                st.error(f"Failed to fetch details for {fruit_chosen}: {str(e)}")
 
-    else:
-        # Clean inputs
-        safe_name = name_on_order.strip().replace("'", "''")
-        safe_ingredients = ingredients_string.replace("'", "''")
+        # SQL statement to insert order into database (assuming proper handling of SQL injection risk)
+        my_insert_stmt = """INSERT INTO smoothies.public.orders(ingredients, name_on_order)
+                            VALUES ('{}', '{}')""".format(ingredients_string, name_on_order)
 
-        # DORA logic
-        order_filled = False
-        if safe_name.lower() in ["divya", "xi"]:
-            order_filled = True
+        # Button to submit order
+        time_to_insert = st.button('Submit Order')
+        if time_to_insert:
+            try:
+                # Execute SQL insert statement
+                session.sql(my_insert_stmt).collect()
+                st.success('Your Smoothie is ordered, ' + name_on_order + '!', icon="✅")
+            except Exception as e:
+                st.error(f"Failed to submit order: {str(e)}")
 
-        # SQL
-        insert_sql = f"""
-        INSERT INTO smoothies.public.orders 
-        (ingredients, name_on_order, order_filled)
-        VALUES ('{safe_ingredients}', '{safe_name}', {str(order_filled).upper()})
-        """
+except Exception as ex:
+    st.error(f"An error occurred: {str(ex)}")
 
-        session.sql(insert_sql).collect()
-
-        st.success(f"✅ Your Smoothie is ordered, {safe_name}!")
-
-# -------------------------------
-# Nutrition API Section
-# -------------------------------
-# -------------------------------
-# Nutrition API Section (FIXED)
-# -------------------------------
-if ingredients_list:
-
-    for fruit_chosen in ingredients_list:
-
-        st.subheader(f"{fruit_chosen} Nutrition Information")
-
-        try:
-            search_on = pd_df.loc[
-                pd_df['FRUIT_NAME'] == fruit_chosen,
-                'SEARCH_ON'
-            ].iloc[0]
-
-            url = f"https://my.smoothiefroot.com/api/fruit/{search_on}"
-            response = requests.get(url)
-
-            # 🔍 Debug (remove later)
-            st.write("API URL:", url)
-            st.write("Status Code:", response.status_code)
-
-            if response.status_code != 200:
-                st.warning(f"⚠️ API failed for {fruit_chosen}")
-                continue
-
-            data = response.json()
-
-            # ✅ Handle both list and dict
-            if isinstance(data, list):
-                df = pd.json_normalize(data)
-            elif isinstance(data, dict):
-                if "error" in data:
-                    st.warning(f"⚠️ {fruit_chosen} not available in API")
-                    continue
-                df = pd.json_normalize([data])
-            else:
-                st.warning(f"⚠️ Unexpected API format for {fruit_chosen}")
-                continue
-
-            # Clean columns
-            df = df.rename(columns={
-                "nutrition.carbohydrates": "carbs",
-                "nutrition.protein": "protein",
-                "nutrition.fat": "fat",
-                "nutrition.sugar": "sugar"
-            })
-
-            st.dataframe(df, use_container_width=True)
-
-        except Exception as e:
-            st.error(f"❌ Failed to fetch {fruit_chosen}")
-            st.write("Error:", e)
+# Display a link
+st.write("https://github.com/appuv")
